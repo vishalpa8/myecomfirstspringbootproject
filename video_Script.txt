@@ -1,0 +1,77 @@
+(() => {
+  let currentVideoId = null;
+  let observer = null;
+
+  // Prevent tab visibility and blur restrictions
+  document.hasFocus = () => true;
+  ['visibilitychange', 'blur', 'focusout'].forEach(event => {
+    window.addEventListener(event, e => e.stopImmediatePropagation(), true);
+    document.addEventListener(event, e => e.stopImmediatePropagation(), true);
+  });
+
+  // Simulate user activity to avoid idle timeout
+  setInterval(() => {
+    window.dispatchEvent(new MouseEvent('mousemove'));
+  }, 30000);
+
+  // Detect the highest supported playback speed (up to 20x)
+  function getMaxSupportedSpeed(video) {
+    let maxSpeed = 20;
+    while (maxSpeed > 1) {
+      try {
+        video.playbackRate = maxSpeed;
+        if (video.playbackRate === maxSpeed) return maxSpeed;
+      } catch {
+        // Continue testing lower values
+      }
+      maxSpeed -= 1;
+    }
+    return 1; // fallback
+  }
+
+  // Enhance video: mute, play, speed up, auto-resume on pause
+  function enhanceVideo(video) {
+    if (!video) return;
+
+    const newId = video.id || video.src;
+    if (newId === currentVideoId) return;
+
+    currentVideoId = newId;
+
+    const speed = getMaxSupportedSpeed(video);
+    video.muted = true;
+    video.playbackRate = speed;
+    video.play().catch(() => console.warn("▶️ Auto-play failed"));
+
+    console.log(`🎬 Enhanced video [ID/src]: ${newId}`);
+    console.log(`⏩ Playback speed set to ${speed}x`);
+
+    video.addEventListener('pause', () => {
+      if (!video.ended) {
+        console.log('▶️ Trying to auto-resume...');
+        video.play().catch(() => {});
+      }
+    });
+  }
+
+  // Watch for video changes (new src, etc.)
+  function observeVideo() {
+    const video = document.querySelector("video");
+    if (!video) return;
+
+    enhanceVideo(video);
+
+    if (observer) observer.disconnect();
+
+    observer = new MutationObserver(() => {
+      enhanceVideo(document.querySelector("video"));
+    });
+
+    observer.observe(video, { attributes: true, attributeFilter: ['src'] });
+  }
+
+  // Retry video detection periodically in case of page changes
+  setInterval(observeVideo, 1000);
+
+  console.log("✅ Robust video enhancer script initialized");
+})();
